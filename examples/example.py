@@ -6,3 +6,14 @@ def warper(img, src, dst):
     warped = cv2.warpPerspective(img, M, img_size, flags=cv2.INTER_NEAREST)  # keep same size as input image
 
     return warped
+	
+	
+	
+	
+	# 1. Camera Calibration
+		# a. Compute camera calibration matrix and distortion coefficients
+		# b. Use coefficients to undistort each frame
+	# 2. Distortion Correction
+	# 3. Color & Gradient Threshold
+	# 4. Perspective Transform
+	
