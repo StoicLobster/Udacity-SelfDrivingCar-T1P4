@@ -48,7 +48,7 @@ def color_thresh(img_RGB_in,RGB_out):
     L_thresh = 240 # Targeting white
     H_thresh = (20,35) # Targeting yellow
     img_out = np.zeros_like(H_layer)
-    #bin_out[(S_layer >= S_thresh[0]) & (S_layer <= S_thresh[1])] = 1
+    #img_out[(S_layer >= S_thresh[0]) & (S_layer <= S_thresh[1])] = 1
     #bin_out[(S_layer >= S_thresh[0]) & (S_layer <= S_thresh[1]) \
     #        | (((H_layer >= H_thresh[0]) & (H_layer <= H_thresh[1])) \
     #        | (L_layer >= L_thresh))] = 1
@@ -104,7 +104,7 @@ def grad_thresh(img_RGB_in,RGB_out):
     # RGB_out boolean can be used for video testing
     #Apply gradient threshold in x direction
     img_GRAY = cv2.cvtColor(img_RGB_in, cv2.COLOR_RGB2GRAY)
-    grad_thresh = (20,100)
+    grad_thresh = (10,100)
     abs_sobel = np.absolute(cv2.Sobel(img_GRAY, cv2.CV_64F, 1, 0))
     scaled_sobel = np.uint8(255*abs_sobel/np.max(abs_sobel))
     img_out = np.zeros_like(img_GRAY, dtype=np.uint8)
@@ -158,6 +158,17 @@ class LaneLines():
         self.img_RGB_out = img_RGB_in
         # Current number of consecutive failed frames
         self.num_failed_frame_curr = 0
+        # Number of frames processed
+        self.frame_num = 0
+        
+        # TEXT
+        self.font = cv2.FONT_HERSHEY_SIMPLEX
+        self.Ofst_Text_pos = (20,500)
+        self.Rad_L_Text_pos = (20,550)
+        self.Rad_R_Text_pos = (20,600)
+        self.fontScale = 1
+        self.fontColor = (255,255,255)
+        self.lineType = 2
         
         # HYPERPARAMETERS
         # Choose the number of sliding windows
@@ -180,27 +191,29 @@ class LaneLines():
         self.xm_per_pix = 3.7/self.x_width_pix # meters per pixel in x dimension
         self.ym_per_pix = 30/self.y_height_pix # meters per pixel in y dimension
         # Number of frames that failed to find lane lines before reset
-        self.num_failed_frame_alwd = 7
+        self.num_failed_frame_alwd = 15
+        # Number of frames for rolling average filter
+        self.filt_size = 15
         
         # LINE PARAMETERS
         # was the left line detected in the current frame
         self.detected_L = False  
         self.detected_R = False 
         # x values of the last n fits of the left line
-        self.x_fit_all_L = np.empty((1,self.ploty.size), dtype='float') 
-        self.x_fit_all_R = np.empty((1,self.ploty.size), dtype='float')  
+        self.x_fit_all_L = np.empty((0,self.ploty.size), dtype='float') 
+        self.x_fit_all_R = np.empty((0,self.ploty.size), dtype='float')  
         #average x values of the fitted left line over the last n iterations
-        self.x_fit_best_L = np.zeros((1,self.ploty.size), dtype='float')    
-        self.x_fit_best_R = np.zeros((1,self.ploty.size), dtype='float')   
+        self.x_fit_best_L = np.zeros((self.ploty.size), dtype='float')    
+        self.x_fit_best_R = np.zeros((self.ploty.size), dtype='float')   
         #polynomial coefficients for the most recent fit
-        self.coef_fit_current_L = np.zeros((1,self.poly_fit_dim+1), dtype='float')
-        self.coef_fit_current_R = np.zeros((1,self.poly_fit_dim+1), dtype='float')  
+        self.coef_fit_current_L = np.zeros((self.poly_fit_dim+1), dtype='float')
+        self.coef_fit_current_R = np.zeros((self.poly_fit_dim+1), dtype='float')  
         #polynomial coefficients for the previous n iterations
-        self.coef_fit_all_L = np.empty((1,self.poly_fit_dim+1), dtype='float')  
-        self.coef_fit_all_R = np.empty((1,self.poly_fit_dim+1), dtype='float')  
+        self.coef_fit_all_L = np.empty((0,self.poly_fit_dim+1), dtype='float')  
+        self.coef_fit_all_R = np.empty((0,self.poly_fit_dim+1), dtype='float')  
         #polynomial coefficients averaged over the last n iterations
-        self.coef_fit_best_L = np.zeros((1,self.poly_fit_dim+1), dtype='float')  
-        self.coef_fit_best_R = np.zeros((1,self.poly_fit_dim+1), dtype='float') 
+        self.coef_fit_best_L = np.zeros((self.poly_fit_dim+1), dtype='float')  
+        self.coef_fit_best_R = np.zeros((self.poly_fit_dim+1), dtype='float') 
         #radius of curvature of the line in [m]
         self.radius_of_curvature_L = 0 
         self.radius_of_curvature_R = 0 
@@ -208,6 +221,16 @@ class LaneLines():
         self.center_line_offst = 0 
         #difference in fit coefficients between last and new fits
         # self.diffs = np.array([0,0,0], dtype='float') 
+        
+        return
+    
+    def update_frame(self,img_RGB_in):
+        '''
+        Stores the new frame in memory
+        '''
+        self.Frame = img_RGB_in
+        self.histogram = None
+        self.img_RGB_out = img_RGB_in
         
         return
         
@@ -227,11 +250,11 @@ class LaneLines():
         '''
         Find lane pixels with histogram method
         '''
-        # Reset previous rolling averages
-        self.x_fit_all_L = np.empty((1,self.ploty.size), dtype='float') 
-        self.x_fit_all_R = np.empty((1,self.ploty.size), dtype='float')
-        self.coef_fit_all_L = np.empty((1,self.poly_fit_dim+1), dtype='float')  
-        self.coef_fit_all_R = np.empty((1,self.poly_fit_dim+1), dtype='float') 
+        # Reset previous rolling average queues
+        self.x_fit_all_L = np.empty((0,self.ploty.size), dtype='float') 
+        self.x_fit_all_R = np.empty((0,self.ploty.size), dtype='float')
+        self.coef_fit_all_L = np.empty((0,self.poly_fit_dim+1), dtype='float')  
+        self.coef_fit_all_R = np.empty((0,self.poly_fit_dim+1), dtype='float') 
         # Take a histogram of the bottom half of the image
         self.hist()
         # Create an output image to draw on and visualize the result
@@ -297,8 +320,12 @@ class LaneLines():
         right_lane_inds = np.concatenate(right_lane_inds)
     
         # Determine if valid number of windows was found with pixels
-        self.detected_L = cnt_wdw_fnd_L >= self.nwindow_fnd
-        self.detected_R = cnt_wdw_fnd_R >= self.nwindow_fnd
+        self.detected_L = (self.frame_num == 0) or (cnt_wdw_fnd_L >= self.nwindow_fnd)
+        self.detected_R = (self.frame_num == 0) or (cnt_wdw_fnd_R >= self.nwindow_fnd)
+        
+        # Color in left and right line pixels
+        self.img_RGB_out[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
+        self.img_RGB_out[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
         
         # Extract left and right line pixel positions
         leftx = nonzerox[left_lane_inds]
@@ -311,20 +338,20 @@ class LaneLines():
             
     def fit_polynomial(self,x,y):
         # Fit a second order polynomial to data using `np.polyfit`
+        # coef_fit = [A, B, C] of y = A*x^2 + B*x + C
         coef_fit = np.polyfit(y, x, self.poly_fit_dim)
         
         # Generate x and y values for plotting
         x_fit = coef_fit[0]*self.ploty**2 + coef_fit[1]*self.ploty + coef_fit[2]
         
+        # Limit x_fit by size of frame
+        x_fit = np.minimum(np.maximum(x_fit,0),self.frame_width-1)
+        
         # Visualization 
         # Colors in the activated pixels
         self.img_RGB_out[y, x] = [255, 0, 0]
         # Colors in the poly line
-        #self.img_RGB_out[self.ploty.astype(int), x_fit.astype(int)] = [255, 255, 0]
-        
-        # Augment numpy dimensions
-        x_fit = np.expand_dims(x_fit, axis=0)
-        coef_fit = np.expand_dims(coef_fit, axis=0)
+        self.img_RGB_out[self.ploty.astype(int), x_fit.astype(int)] = [255, 255, 0]
         
         return coef_fit, x_fit
     
@@ -339,8 +366,8 @@ class LaneLines():
         
         # Set the area of search based on activated x-values 
         # within the +/- margin of our polynomial function (from previous frame)
-        left_lane_inds = ((nonzerox > (self.coef_fit_current_L[0][0]*(nonzeroy**2) + self.coef_fit_current_L[0][1]*nonzeroy + self.coef_fit_current_L[0][2] - self.margin_poly)) & (nonzerox < (self.coef_fit_current_L[0][0]*(nonzeroy**2) + self.coef_fit_current_L[0][1]*nonzeroy + self.coef_fit_current_L[0][2] + self.margin_poly)))
-        right_lane_inds = ((nonzerox > (self.coef_fit_current_R[0][0]*(nonzeroy**2) + self.coef_fit_current_R[0][1]*nonzeroy + self.coef_fit_current_R[0][2] - self.margin_poly)) & (nonzerox < (self.coef_fit_current_R[0][0]*(nonzeroy**2) +  self.coef_fit_current_R[0][1]*nonzeroy + self.coef_fit_current_R[0][2] + self.margin_poly)))
+        left_lane_inds = ((nonzerox > (self.coef_fit_current_L[0]*(nonzeroy**2) + self.coef_fit_current_L[1]*nonzeroy + self.coef_fit_current_L[2] - self.margin_poly)) & (nonzerox < (self.coef_fit_current_L[0]*(nonzeroy**2) + self.coef_fit_current_L[1]*nonzeroy + self.coef_fit_current_L[2] + self.margin_poly)))
+        right_lane_inds = ((nonzerox > (self.coef_fit_current_R[0]*(nonzeroy**2) + self.coef_fit_current_R[1]*nonzeroy + self.coef_fit_current_R[2] - self.margin_poly)) & (nonzerox < (self.coef_fit_current_R[0]*(nonzeroy**2) +  self.coef_fit_current_R[1]*nonzeroy + self.coef_fit_current_R[2] + self.margin_poly)))
         
         # Extract left and right line pixel positions
         leftx = nonzerox[left_lane_inds]
@@ -349,40 +376,41 @@ class LaneLines():
         righty = nonzeroy[right_lane_inds]
         
         # Determine pixel find validity
-        self.detected_L = len(left_lane_inds) > self.minpix_poly
-        self.detected_R = len(right_lane_inds) > self.minpix_poly
+        self.detected_L = len(leftx) > self.minpix_poly
+        self.detected_R = len(rightx) > self.minpix_poly
         
-        # Prepare output RGB image
-        self.img_RGB_out = np.dstack((self.img_BIN_in, self.img_BIN_in, self.img_BIN_in))
-        
-        # Visualization 
-        # Create an image to draw on and an image to show the selection window
-        # out_img = np.dstack((img_bin, img_bin, img_bin))*255
-        window_img = np.zeros_like(self.img_RGB_out)
-        # Color in left and right line pixels
-        self.img_RGB_out[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-        self.img_RGB_out[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
-        
-        # Generate a polygon to illustrate the search window area
-        # And recast the x and y points into usable format for cv2.fillPoly()
-        coef_tmp_L, x_fit_L = self.fit_polynomial(leftx,lefty)
-        coef_tmp_R, x_fit_R = self.fit_polynomial(rightx,righty)
-        left_line_window1 = np.array([np.transpose(np.vstack([x_fit_L-self.margin_poly, self.ploty]))])
-        left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([x_fit_L+self.margin_poly, self.ploty])))])
-        left_line_pts = np.hstack((left_line_window1, left_line_window2))
-        right_line_window1 = np.array([np.transpose(np.vstack([x_fit_R-self.margin_poly, self.ploty]))])
-        right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([x_fit_R+self.margin_poly, self.ploty])))])
-        right_line_pts = np.hstack((right_line_window1, right_line_window2))
-        
-        # Draw the lane onto the warped blank image
-        cv2.fillPoly(window_img, np.int_([left_line_pts]), (0,255, 0))
-        cv2.fillPoly(window_img, np.int_([right_line_pts]), (0,255, 0))
-        self.img_RGB_out = cv2.addWeighted(self.img_RGB_out, 1, window_img, 0.3, 0)
-        
-        # Plot the polynomial lines onto the image
-        # plt.plot(left_fitx, ploty, color='yellow')
-        # plt.plot(right_fitx, ploty, color='yellow')
-        # End visualization steps 
+        if (self.detected_L and self.detected_R):
+            # Prepare output RGB image
+            self.img_RGB_out = np.dstack((self.img_BIN_in, self.img_BIN_in, self.img_BIN_in))
+            
+            # Visualization 
+            # Create an image to draw on and an image to show the selection window
+            # out_img = np.dstack((img_bin, img_bin, img_bin))*255
+            window_img = np.zeros_like(self.img_RGB_out)
+            # Color in left and right line pixels
+            self.img_RGB_out[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
+            self.img_RGB_out[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+            
+            # Generate a polygon to illustrate the search window area
+            # And recast the x and y points into usable format for cv2.fillPoly()
+            coef_tmp_L, x_fit_L = self.fit_polynomial(leftx,lefty)
+            coef_tmp_R, x_fit_R = self.fit_polynomial(rightx,righty)
+            left_line_window1 = np.array([np.transpose(np.vstack([x_fit_L-self.margin_poly, self.ploty]))])
+            left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([x_fit_L+self.margin_poly, self.ploty])))])
+            left_line_pts = np.hstack((left_line_window1, left_line_window2))
+            right_line_window1 = np.array([np.transpose(np.vstack([x_fit_R-self.margin_poly, self.ploty]))])
+            right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([x_fit_R+self.margin_poly, self.ploty])))])
+            right_line_pts = np.hstack((right_line_window1, right_line_window2))
+            
+            # Draw the lane onto the warped blank image
+            cv2.fillPoly(window_img, np.int_([left_line_pts]), (0,255, 0))
+            cv2.fillPoly(window_img, np.int_([right_line_pts]), (0,255, 0))
+            self.img_RGB_out = cv2.addWeighted(self.img_RGB_out, 1, window_img, 0.3, 0)
+            
+            # Plot the polynomial lines onto the image
+            # plt.plot(left_fitx, ploty, color='yellow')
+            # plt.plot(right_fitx, ploty, color='yellow')
+            # End visualization steps 
         
         return leftx, lefty, rightx, righty
     
@@ -391,20 +419,27 @@ class LaneLines():
         Perform rolling average on polynomials to determine best fit.
         '''
         # Reset best
-        self.coef_fit_current_L = np.zeros((1,self.poly_fit_dim+1), dtype='float')
-        self.coef_fit_current_R = np.zeros((1,self.poly_fit_dim+1), dtype='float')  
-        self.coef_fit_best_L = np.zeros((1,self.poly_fit_dim+1), dtype='float')  
-        self.coef_fit_best_R = np.zeros((1,self.poly_fit_dim+1), dtype='float') 
+        self.coef_fit_best_L = np.zeros((self.poly_fit_dim+1), dtype='float')  
+        self.coef_fit_best_R = np.zeros((self.poly_fit_dim+1), dtype='float') 
+        self.x_fit_best_L = np.zeros((self.ploty.size), dtype='float')    
+        self.x_fit_best_R = np.zeros((self.ploty.size), dtype='float')  
+        
+        # Check if size of queue is larger than filter size
+        if (self.x_fit_all_L.shape[0] > self.filt_size):
+            self.x_fit_all_L = np.delete(self.x_fit_all_L,(0),axis=0)
+            self.x_fit_all_R = np.delete(self.x_fit_all_R,(0),axis=0)
+            self.coef_fit_all_L = np.delete(self.coef_fit_all_L,(0),axis=0)
+            self.coef_fit_all_R = np.delete(self.coef_fit_all_R,(0),axis=0)
         
         # Loop through and compute average
         n = self.x_fit_all_L.shape[0]
         for row in range(n):
             for col_x_fit in range(self.x_fit_all_L.shape[1]):
-                self.x_fit_best_L[row,col_x_fit] = self.x_fit_best_L[row,col_x_fit] + self.x_fit_all_L[row,col_x_fit]
-                self.x_fit_best_R[row,col_x_fit] = self.x_fit_best_R[row,col_x_fit] + self.x_fit_all_R[row,col_x_fit]
+                self.x_fit_best_L[col_x_fit] = self.x_fit_best_L[col_x_fit] + self.x_fit_all_L[row,col_x_fit]
+                self.x_fit_best_R[col_x_fit] = self.x_fit_best_R[col_x_fit] + self.x_fit_all_R[row,col_x_fit]
             for col_coef_fit in range(self.coef_fit_all_L.shape[1]):
-                self.coef_fit_best_L[row,col_coef_fit] = self.coef_fit_best_L[row,col_coef_fit] + self.coef_fit_all_L[row,col_coef_fit]
-                self.coef_fit_best_R[row,col_coef_fit] = self.coef_fit_best_R[row,col_coef_fit] + self.coef_fit_all_R[row,col_coef_fit]   
+                self.coef_fit_best_L[col_coef_fit] = self.coef_fit_best_L[col_coef_fit] + self.coef_fit_all_L[row,col_coef_fit]
+                self.coef_fit_best_R[col_coef_fit] = self.coef_fit_best_R[col_coef_fit] + self.coef_fit_all_R[row,col_coef_fit]   
                 
         self.x_fit_best_L = self.x_fit_best_L/n    
         self.x_fit_best_R = self.x_fit_best_R/n
@@ -433,38 +468,49 @@ class LaneLines():
         
         return
     
+    def calc_offset(self):
+        '''
+        Calculates the offset between vehicle and center of lane
+        '''
+        self.center_line_offst = abs(self.midpoint_width - (self.x_fit_best_L[-1] + self.x_fit_best_R[-1])/2) * self.xm_per_pix
+        
+        return
+    
     def find_lane_lines(self):
         '''
         Find lane lines with an appropriate method
         '''
         ## Find lane pixels
-        # If both left and right detection from previous loop is false: Use histogram method  
+        # If left and right detection from previous loop is false: Use histogram method  
         if (not(self.detected_L)) and (not(self.detected_R)):
+            print("Histogram search method used.")
             # Call histogram method to find pixel locations of lanes and determine current frame detection validity
             leftx, lefty, rightx, righty = self.find_lane_pixels_hist()
-            print("Histogram search method used.")
         else:
+            print("Polynomial search method used")
             # Call poly search method to find pixel locations of lanes and determine current frame detection validity
             leftx, lefty, rightx, righty = self.find_lane_pixels_poly()
-            print("Polynomial search method used")
-            if (not(self.detected_L)) and (not(self.detected_R)):
+            if (not(self.detected_L)) or (not(self.detected_R)):
+                print("Polynomial search method failed. Histogram search method used.") 
                 # Neither lane was found, must use histogram method
-                leftx, lefty, rightx, righty = self.find_lane_pixels_hist()
-                print("Polynomial search method failed. Histogram search method used.")     
+                leftx, lefty, rightx, righty = self.find_lane_pixels_hist()    
                 
         ## Check if both lane lines were found
         if (self.detected_L and self.detected_R):
+            # Reset failed counter            
+            self.num_failed_frame_curr = 0
+            
             # Fit new polynomials for both lanes       
             self.coef_fit_current_L, x_fit_L = self.fit_polynomial(leftx,lefty)
             self.coef_fit_current_R, x_fit_R = self.fit_polynomial(rightx,righty)
             
             # Append x_fit to list
-            np.append(self.x_fit_all_L, x_fit_L, axis=0)
-            np.append(self.x_fit_all_R, x_fit_R, axis=0)
+            self.x_fit_all_L = np.vstack((self.x_fit_all_L, x_fit_L))
+            self.x_fit_all_R = np.vstack((self.x_fit_all_R, x_fit_R))
             
             # Append coefficients to list
-            np.append(self.coef_fit_all_L, self.coef_fit_current_L, axis=0)
-            np.append(self.coef_fit_all_R, self.coef_fit_current_R, axis=0)
+            self.coef_fit_all_L = np.vstack((self.coef_fit_all_L, self.coef_fit_current_L))
+            self.coef_fit_all_R = np.vstack((self.coef_fit_all_R, self.coef_fit_current_R))
             
             # Calculate rolling average
             self.calc_best()
@@ -482,50 +528,62 @@ class LaneLines():
         self.calc_rad_real()
         
         # Calculate center line offset
-        self.center_line_offst = abs(self.midpoint_width - (self.x_fit_best_L[-1] + self.x_fit_best_R[-1])/2) * self.xm_per_pix
+        self.calc_offset()
         
-                ## Next find lane polynomials
-        # Check if only one lane detection in current frame is valid
-        # Use the valid lane to calculate polynomial and shift to other side with starting position of previous lane
-        # Call polyfit for valid side and set other side detection to TRUE
-#         if (self.detected_L and not(self.detected_R)):
-#             # Calculate valid lane
-#             self.coef_fit_current_L, x_fit_L = self.fit_polynomial(leftx,lefty)
-#             np.append(self.x_fit_all_L, x_fit_L, axis=0)
+#         elif (self.detected_L and not(self.detected_R)):
+#             print("Left detected and right not.")
+#             # Shift left lane line to right side
 #             
-#             # Calculate other side
-#             x_fit_R = self.coef_fit_current_L[0]*self.ploty**2 + self.coef_fit_current_L[1]*self.ploty + self.coef_fit_current_L[2]
-#             np.append(self.x_fit_all_L, x_fit_L, axis=0)
-#         else:
-        
-        # If only one lane detection in current frame is false: Use the valid lane to calculate polynomial and use for other side with pixel shift
-            # Call polyfit for valid side and set other side detection to TRUE
-        # Else:
-            # Reuse best polyfit from last loop
+#         elif (not(self.detected_L) and self.detected_R):
+#             print("Right detected and left not.")
+#             # Shift right lane line to left side
             
         return
         
-    def draw_frame(self,warped):
+    def draw_frame(self,img_RGB_in):
         '''
         Draws the frame with desired polynomials in original image perspective
         '''
+        print("\n")
+        #print("Processing Frame # " + str(self.frame_num))
+        # Store new frame
+        self.update_frame(img_RGB_in)
+        
+        # Calculate binary image of color and gradient thresholds
+        self.img_BIN_in = grad_thresh(top_down_xfrm(color_thresh(undistort(img_RGB_in),RGB_out=True),frwd=True),RGB_out=False)
+        
         # Create an image to draw the lines on
-        warp_zero = np.zeros_like(warped).astype(np.uint8)
+        warp_zero = np.zeros_like(self.img_BIN_in).astype(np.uint8)
         color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
         
+        # Find lane lines
+        self.find_lane_lines()
+        
         # Recast the x and y points into usable format for cv2.fillPoly()
-        pts_left = np.array([np.transpose(np.vstack([left_fitx, self.ploty]))])
-        pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, self.ploty])))])
+        pts_left = np.array([np.transpose(np.vstack([self.x_fit_best_L, self.ploty]))])
+        pts_right = np.array([np.flipud(np.transpose(np.vstack([self.x_fit_best_R, self.ploty])))])
         pts = np.hstack((pts_left, pts_right))
         
         # Draw the lane onto the warped blank image
         cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))
         
         # Warp the blank back to original image space using inverse perspective matrix (Minv)
-        newwarp = cv2.warpPerspective(color_warp, Minv, (image.shape[1], image.shape[0])) 
+        newwarp = cv2.warpPerspective(color_warp, Minv, (img_RGB_in.shape[1], img_RGB_in.shape[0])) 
         # Combine the result with the original image
-        result = cv2.addWeighted(undist, 1, newwarp, 0.3, 0)
-        plt.imshow(result)
+        self.Frame = cv2.addWeighted(img_RGB_in, 1, newwarp, 0.3, 0)
+
+        # Draw text on image   
+        cv2.putText(self.Frame,"Lane Center Offset [m]: " + str(round(self.center_line_offst,2)),self.Ofst_Text_pos,self.font,self.fontScale,self.fontColor,self.lineType)   
+        cv2.putText(self.Frame,"Radius Left [m]: " + str(round(self.radius_of_curvature_L,0)),self.Rad_L_Text_pos,self.font,self.fontScale,self.fontColor,self.lineType)
+        cv2.putText(self.Frame,"Radius Right [m]: " + str(round(self.radius_of_curvature_R,0)),self.Rad_R_Text_pos,self.font,self.fontScale,self.fontColor,self.lineType)
+        
+        self.frame_num = self.frame_num + 1
+        #print("Left Radius: " + str(self.radius_of_curvature_L))
+        #print("Right Radius: " + str(self.radius_of_curvature_R))
+        #print("Lane Center Offset: " + str(lane_lines.center_line_offst))
+        
+        #return(self.Frame)
+        return(self.img_RGB_out)
                 
 # Sample histogram
 if (False):
@@ -550,64 +608,69 @@ if (False):
     plt.title('Original Image')
     img_BIN_in = grad_thresh(top_down_xfrm(color_thresh(undistort(img),RGB_out=True),frwd=True),RGB_out=False)
     lane_lines = LaneLines(img,img_BIN_in)
+    # Search for lane lines using histogram method
     leftx, lefty, rightx, righty = lane_lines.find_lane_pixels_hist()
-    lane_lines.fit_polynomial(leftx,lefty)
-    lane_lines.fit_polynomial(rightx,righty)
+    # Fit new polynomials for both lanes 
+    lane_lines.coef_fit_current_L, x_fit_L = lane_lines.fit_polynomial(leftx,lefty)
+    lane_lines.coef_fit_current_R, x_fit_R = lane_lines.fit_polynomial(rightx,righty)
+    print("Current Left Coefficients: " + str(lane_lines.coef_fit_current_L))
+    print("Current Right Coefficients: " + str(lane_lines.coef_fit_current_R))
     plt.figure(11)
     plt.imshow(lane_lines.img_RGB_out)
     plt.title('2nd Order Polynomial Fit')
+    # Sample search around poly
+    if (False):
+        # Append x_fit to list
+        lane_lines.x_fit_all_L = np.vstack((lane_lines.x_fit_all_L, x_fit_L))
+        lane_lines.x_fit_all_R = np.vstack((lane_lines.x_fit_all_R, x_fit_R))
+        # Append coefficients to list
+        lane_lines.coef_fit_all_L = np.vstack((lane_lines.coef_fit_all_L, lane_lines.coef_fit_current_L))
+        lane_lines.coef_fit_all_R = np.vstack((lane_lines.coef_fit_all_R, lane_lines.coef_fit_current_R))
+        print("All Left Coefficients: " + str(lane_lines.coef_fit_all_L))
+        print("All Right Coefficients: " + str(lane_lines.coef_fit_all_R))
+        # Calculate rolling average
+        lane_lines.calc_best()
+        print("Best Left Coefficients: " + str(lane_lines.coef_fit_best_L))
+        print("Best Right Coefficients: " + str(lane_lines.coef_fit_best_R))
+        # Calculate real radius of curvature
+        lane_lines.calc_rad_real()
+        print("Left Radius: " + str(lane_lines.radius_of_curvature_L))
+        print("Right Radius: " + str(lane_lines.radius_of_curvature_R))
+        lane_lines.calc_offset()
+        print("Center Lane Offset: " + str(lane_lines.center_line_offst))
+        # Search for lane lines around previous best polynomial
+        leftx, lefty, rightx, righty = lane_lines.find_lane_pixels_poly()
+        # Fit new polynomials for both lanes       
+        lane_lines.coef_fit_current_L, x_fit_L = lane_lines.fit_polynomial(leftx,lefty)
+        lane_lines.coef_fit_current_R, x_fit_R = lane_lines.fit_polynomial(rightx,righty)
+        plt.figure(12)
+        plt.imshow(lane_lines.img_RGB_out)
+        plt.title('Search Around Previous Polynomial')
     plt.show()
     
-# Sample search around poly
-if (True):
+# Test full pipeline
+if (False):
     img = mpimg.imread('test_images/test6.jpg')
-    plt.figure(12)
+    lane_lines = LaneLines(img,img)
+    plt.figure(13)
     plt.imshow(img)
     plt.title('Original Image')
-    img_BIN_in = grad_thresh(top_down_xfrm(color_thresh(undistort(img),RGB_out=True),frwd=True),RGB_out=False)
-    lane_lines = LaneLines(img,img_BIN_in)
-    # Search for lane lines using histogram method
-    leftx, lefty, rightx, righty = lane_lines.find_lane_pixels_hist()
-    # Fit new polynomials for both lanes       
-    lane_lines.coef_fit_current_L, x_fit_L = lane_lines.fit_polynomial(leftx,lefty)
-    lane_lines.coef_fit_current_R, x_fit_R = lane_lines.fit_polynomial(rightx,righty)
-    # Append x_fit to list
-    np.append(lane_lines.x_fit_all_L, x_fit_L, axis=0)
-    np.append(lane_lines.x_fit_all_R, x_fit_R, axis=0)
-    # Append coefficients to list
-    np.append(lane_lines.coef_fit_all_L, lane_lines.coef_fit_current_L, axis=0)
-    np.append(lane_lines.coef_fit_all_R, lane_lines.coef_fit_current_R, axis=0)
-    # Calculate rolling average
-    lane_lines.calc_best()
-    # Search for lane lines around previous best polynomial
-    leftx, lefty, rightx, righty = lane_lines.find_lane_pixels_poly()
-    # Fit new polynomials for both lanes       
-    lane_lines.coef_fit_current_L, x_fit_L = lane_lines.fit_polynomial(leftx,lefty)
-    lane_lines.coef_fit_current_R, x_fit_R = lane_lines.fit_polynomial(rightx,righty)
-    plt.figure(13)
-    plt.imshow(lane_lines.img_RGB_out)
-    plt.plot(x_fit_L[0], lane_lines.ploty, color='yellow')
-    plt.plot(x_fit_R[0], lane_lines.ploty, color='yellow')
-    plt.title('Search Around Previous Polynomial')
+    plt.figure(14)
+    plt.imshow(lane_lines.draw_frame(img))
+    plt.title('Found Lines')
     plt.show()
-
-## Process a given image (frame) to detect lane lines and return annotated image
-def process_image(img_RGB_in):
-    img_RGB_undistort = undistort(img_RGB_in)
-    img_RGB_color = color_thresh(img_RGB_undistort,RGB_out=True)
-    img_RGB_xfrm_frwd = top_down_xfrm(img_RGB_color,frwd=True)
-    img_BIN_grad = grad_thresh(img_RGB_xfrm_frwd,RGB_out=False)
-    img_RGB_out, left_fit, right_fit = fit_polynomial(img_BIN_grad);
-    return(img_RGB_out)
     
 ## Process video
-if (False):
+if (True):
+    img = mpimg.imread('test_images/test6.jpg')
+    lane_lines = LaneLines(img,img)
     video_output  = 'output_videos/project_video_processed.mp4'
+    #video_output  = 'output_videos/project_video_processed.mp4'
     ## To speed up the testing process you may want to try your pipeline on a shorter subclip of the video
     ## To do so add .subclip(start_second,end_second) to the end of the line below
     ## Where start_second and end_second are integer values representing the start and end of the subclip
     ## You may also uncomment the following line for a subclip of the first 5 seconds
     ##clip1 = VideoFileClip("test_videos/solidWhiteRight.mp4").subclip(0,5)
-    clip = VideoFileClip("test_videos/project_video.mp4").subclip(0,5)
-    video_clip = clip.fl_image(process_image) #NOTE: this function expects color images!!
+    clip = VideoFileClip("test_videos/project_video.mp4").subclip(23,28)
+    video_clip = clip.fl_image(lane_lines.draw_frame) #NOTE: this function expects color images!!
     video_clip.write_videofile(video_output, audio=False)
