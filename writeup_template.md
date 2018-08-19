@@ -14,11 +14,11 @@ The goals / steps of this project are the following:
 [//]: # (Image References)
 
 [image0]: ./output_images/chessboard_corners.png "Chessboard Corners"
-[image1]: ./camera_cal/calibration1.jpg "Distorted"
+[image1]: ./output_images/distorted_image.png "Distorted"
 [image2]: ./output_images/undistorted_image.png "Undistorted"
+[image3]: ./output_images/pre_color_thresh.png "Before Color Threshold"
+[image4]: ./output_images/post_color_thresh.png "After Color Threshold"
 
-[image2]: ./test_images/test1.jpg "Road Transformed"
-[image3]: ./examples/binary_combo_example.jpg "Binary Example"
 [image4]: ./examples/warped_straight_lines.jpg "Warp Example"
 [image5]: ./examples/color_fit_lines.jpg "Fit Visual"
 [image6]: ./examples/example_output.jpg "Output"
@@ -42,11 +42,11 @@ You're reading it!
 
 My first step of this project was to calibrate the camera so that I may perform an undistort transformation and remove the effect that the camera lense may have on the image. Specifically, I needed to calculate the camera matrix and distortion coefficients. To do this I relied heavily on the cv2 library.
 
-The camera calibration was performed in 'calibrate_camera.py'. In this script, I loop through the 20 calibration images of a chessboard, find the corners with 'cv2.findChessboardCorners()', add the image points to a list (2D image points) and the corresponding object points (3D real world points). With these points stored, I passed them to 'cv2.calibrateCamera()' in order to calculate the camera matrix and distortion coefficients. An example of the 'cv2.findChessboardCorners()' can be seen here:
+The camera calibration was performed in `calibrate_camera.py`. In this script, I loop through the 20 calibration images of a chessboard, find the corners with `cv2.findChessboardCorners()`, add the image points to a list (2D image points) and the corresponding object points (3D real world points). With these points stored, I passed them to `cv2.calibrateCamera()` in order to calculate the camera matrix and distortion coefficients. An example of the `cv2.findChessboardCorners()` can be seen here:
 
 ![alt text][image0]
 
-These camera coefficient outputs could then be used with 'cv2.undistort()' in order to correct an image. See the distorted and undistorted example below:
+These camera coefficient outputs could then be used with `cv2.undistort()` in order to correct an image. See the distorted and undistorted example below:
 
 ![alt text][image1]
 
@@ -54,16 +54,22 @@ These camera coefficient outputs could then be used with 'cv2.undistort()' in or
 
 ### Pipeline (single images)
 
-#### 1. Provide an example of a distortion-corrected image.
+#### 1. Camera Undistort
 
-To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
-![alt text][image2]
+The first operation in my final pipeline is to apply a camera undistortion. See the Camera Calibration section above for an example of how camera undistortion is applied. In the final pipeline, the camera undistortion was implemented in `locate_lane_lines.py` in the function `undistort()`.
 
-#### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
+#### 2. Color Detection
+
+Next I applied a color threshold to identify white and yellow pixels in the original RGB image. After much testing, I determined that the best method to do so was to convert the RGB image to HSV color space. The H (hue) layer made it easier to identify specific colors (yellow and white) of the colors of lane lines. With a specific hue band targeted, I also applied a band of S (saturation) and V (value) thresholds to allow for image variance in the white and yellow targets. This algorithm was implemented in `locate_lane_lines.py` in the function `color_thresh()`.
+
+An example of how this color thresholding works may be found here:
+
 
 I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
 
 ![alt text][image3]
+
+![alt text][image4]
 
 #### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
 

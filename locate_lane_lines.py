@@ -28,11 +28,12 @@ if (False):
     plt.figure(0)
     plt.imshow(img)
     plt.title('Original Image')
+    plt.savefig('output_images/distorted_image.png')
     plt.figure(1)
     plt.imshow(dst_img)
     plt.title('Undistorted Image')
+    plt.savefig('output_images/undistorted_image.png')
     plt.show()
-    mpimg.imsave('output_images/undistorted_image.png',dst_img)
     
 # Color Threshold Function
 def color_thresh(img_RGB_in,RGB_out):
@@ -66,17 +67,18 @@ def color_thresh(img_RGB_in,RGB_out):
     return(img_out)
 
 # Sample color threshold image
-if (False):
+if (True):
     img = mpimg.imread('test_images/test5.jpg')
-    thrsh_img = color_thresh(img,RGB_out=False)
+    thrsh_img = color_thresh(img,RGB_out=True)
     plt.figure(2)
     plt.imshow(img)
     plt.title('Original Image')
+    plt.savefig('output_images/pre_color_thresh.png')
     plt.figure(3)
     plt.imshow(thrsh_img, cmap='gray')
     plt.title('Color Threshold')
+    plt.savefig('output_images/post_color_thresh.png')
     plt.show()
-    mpimg.imsave('output_images/color_thresh_image.png',thrsh_img,cmap='gray')
 
 ## Perspective Transform to Top-Down View Function
 def top_down_xfrm(img_RGB_in,frwd):
