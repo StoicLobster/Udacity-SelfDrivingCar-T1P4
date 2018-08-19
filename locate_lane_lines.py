@@ -67,7 +67,7 @@ def color_thresh(img_RGB_in,RGB_out):
     return(img_out)
 
 # Sample color threshold image
-if (True):
+if (False):
     img = mpimg.imread('test_images/test5.jpg')
     thrsh_img = color_thresh(img,RGB_out=True)
     plt.figure(2)
@@ -99,11 +99,12 @@ if (False):
     plt.figure(4)
     plt.imshow(img)
     plt.title('Original Image')
+    plt.savefig('output_images/pre_top_down.png')
     plt.figure(5)
     plt.imshow(warped)
     plt.title('Top Down View Warp')
+    plt.savefig('output_images/post_top_down.png')
     plt.show()
-    mpimg.imsave('output_images/top_down_img.png',warped)
 
 ## Gradient Threshold Function
 def grad_thresh(img_RGB_in,RGB_out):
@@ -128,15 +129,17 @@ def grad_thresh(img_RGB_in,RGB_out):
 # Sample gradient threshold image
 if (False):
     img = mpimg.imread('test_images/test6.jpg')
+    img = top_down_xfrm(img,frwd=True)
     thrsh_img = grad_thresh(img,RGB_out=False)
     plt.figure(6)
     plt.imshow(img)
-    plt.title('Original Image')
+    plt.title('Original Top Down Transformed Image')
+    plt.savefig('output_images/pre_grad_thresh.png')
     plt.figure(7)
     plt.imshow(thrsh_img, cmap='gray')
     plt.title('Gradient Threshold')
+    plt.savefig('output_images/post_grad_thresh.png')
     plt.show()
-    mpimg.imsave('output_images/grad_thresh_image.png',thrsh_img,cmap='gray')
 
 # Class to store and calculate both lane line parameters
 class LaneLines():
@@ -586,15 +589,20 @@ class LaneLines():
         return(self.Frame)
                 
 # Sample histogram
-if (True):
+if (False):
     img = mpimg.imread('test_images/test6.jpg')
     img_BIN_in = grad_thresh(top_down_xfrm(color_thresh(undistort(img),RGB_out=True),frwd=True),RGB_out=False);
     lane_lines = LaneLines(img,img_BIN_in)
     lane_lines.hist()
     histogram = lane_lines.histogram
-    plt.figure(8)
+    plt.figure(7)
     plt.imshow(img)
     plt.title('Original Image')
+    plt.savefig('output_images/original_histogram.png')
+    plt.figure(8)
+    plt.imshow(img_BIN_in, cmap='gray')
+    plt.title('Original Binary Image')
+    plt.savefig('output_images/original_bin_histogram.png')
     plt.figure(9)
     plt.plot(histogram)
     plt.title('Histogram')
@@ -618,8 +626,8 @@ if (True):
     print("Current Right Coefficients: " + str(lane_lines.coef_fit_current_R))
     plt.figure(11)
     plt.imshow(lane_lines.img_RGB_out)
-    plt.title('2nd Order Polynomial Fit')
-    mpimg.imsave('output_images/hist_search.png',lane_lines.img_RGB_out)
+    plt.title('2nd Order Polynomial Fit - Histogram Search Method')
+    plt.savefig('output_images/poly_hist.png')
     # Sample search around poly
     if (True):
         # Append x_fit to list
@@ -647,8 +655,8 @@ if (True):
         lane_lines.coef_fit_current_R, x_fit_R = lane_lines.fit_polynomial(rightx,righty)
         plt.figure(12)
         plt.imshow(lane_lines.img_RGB_out)
-        plt.title('Search Around Previous Polynomial')
-        mpimg.imsave('output_images/poly_search.png',lane_lines.img_RGB_out)
+        plt.title('2nd Order Polynomial Fit - Polynomial Search Method')
+        plt.savefig('output_images/poly_poly.png')
     plt.show()
     
 # Test full pipeline
