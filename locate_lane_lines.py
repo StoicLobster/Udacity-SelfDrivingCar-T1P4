@@ -32,6 +32,7 @@ if (False):
     plt.imshow(dst_img)
     plt.title('Undistorted Image')
     plt.show()
+    mpimg.imsave('output_images/undistorted_image.png',dst_img)
     
 # Color Threshold Function
 def color_thresh(img_RGB_in,RGB_out):
@@ -75,6 +76,7 @@ if (False):
     plt.imshow(thrsh_img, cmap='gray')
     plt.title('Color Threshold')
     plt.show()
+    mpimg.imsave('output_images/color_thresh_image.png',thrsh_img,cmap='gray')
 
 ## Perspective Transform to Top-Down View Function
 def top_down_xfrm(img_RGB_in,frwd):
@@ -99,6 +101,7 @@ if (False):
     plt.imshow(warped)
     plt.title('Top Down View Warp')
     plt.show()
+    mpimg.imsave('output_images/top_down_img.png',warped)
 
 ## Gradient Threshold Function
 def grad_thresh(img_RGB_in,RGB_out):
@@ -131,6 +134,7 @@ if (False):
     plt.imshow(thrsh_img, cmap='gray')
     plt.title('Gradient Threshold')
     plt.show()
+    mpimg.imsave('output_images/grad_thresh_image.png',thrsh_img,cmap='gray')
 
 # Class to store and calculate both lane line parameters
 class LaneLines():
@@ -580,7 +584,7 @@ class LaneLines():
         return(self.Frame)
                 
 # Sample histogram
-if (False):
+if (True):
     img = mpimg.imread('test_images/test6.jpg')
     img_BIN_in = grad_thresh(top_down_xfrm(color_thresh(undistort(img),RGB_out=True),frwd=True),RGB_out=False);
     lane_lines = LaneLines(img,img_BIN_in)
@@ -592,10 +596,11 @@ if (False):
     plt.figure(9)
     plt.plot(histogram)
     plt.title('Histogram')
+    plt.savefig('output_images/histogram.png')
     plt.show()
     
 # Sample polyfit with histogram search
-if (False):
+if (True):
     img = mpimg.imread('test_images/test6.jpg')
     plt.figure(10)
     plt.imshow(img)
@@ -612,8 +617,9 @@ if (False):
     plt.figure(11)
     plt.imshow(lane_lines.img_RGB_out)
     plt.title('2nd Order Polynomial Fit')
+    mpimg.imsave('output_images/hist_search.png',lane_lines.img_RGB_out)
     # Sample search around poly
-    if (False):
+    if (True):
         # Append x_fit to list
         lane_lines.x_fit_all_L = np.vstack((lane_lines.x_fit_all_L, x_fit_L))
         lane_lines.x_fit_all_R = np.vstack((lane_lines.x_fit_all_R, x_fit_R))
@@ -640,6 +646,7 @@ if (False):
         plt.figure(12)
         plt.imshow(lane_lines.img_RGB_out)
         plt.title('Search Around Previous Polynomial')
+        mpimg.imsave('output_images/poly_search.png',lane_lines.img_RGB_out)
     plt.show()
     
 # Test full pipeline
@@ -653,6 +660,7 @@ if (False):
     plt.imshow(lane_lines.draw_frame(img))
     plt.title('Found Lines')
     plt.show()
+    mpimg.imsave('output_images/full_pipeline.png',lane_lines.draw_frame(img))
     
 ## Process video
 if (False):

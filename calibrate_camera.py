@@ -38,20 +38,23 @@ for i in range(20):
         imgPnts.append(corners)
         objPnts.append(objPt)
         
-        # Draw to display corners
-        #plt.figure(i)
-        #i = i + 1
-        #img = cv2.drawChessboardCorners(img, (nx,ny), corners, ret)
-        #plt.imshow(img)
+        #Draw to display corners
+        plt.figure(i)
+        i = i + 1
+        img = cv2.drawChessboardCorners(img, (nx,ny), corners, ret)
+        plt.imshow(img)
+        plt.title('Chessboard Corner Detection')
+        plt.savefig('output_images/chessboard_corners.png')
+        plt.show()
 
 # Calibrate camera
 ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objPnts, imgPnts, gray.shape[::-1], None, None)
 
 # Pickle the camera matrix (mtx) and distortion coefficients (dist)
-pickle.dump(mtx,open("camera_matrix.p","wb"))
-pickle.dump(dist,open("camera_distortion_coefficients.p","wb"))
+#pickle.dump(mtx,open("camera_matrix.p","wb"))
+#pickle.dump(dist,open("camera_distortion_coefficients.p","wb"))
 
-# Sample undistort image
+#Sample undistort image
 # fname = base_fname + str(1) + '.jpg'
 # img = mpimg.imread(fname)
 # dst_img = cv2.undistort(img, mtx, dist, None, mtx)
@@ -61,5 +64,4 @@ pickle.dump(dist,open("camera_distortion_coefficients.p","wb"))
 # plt.figure(1)
 # plt.imshow(dst_img)
 # plt.title('Undistorted Image')
-#     
 # plt.show()

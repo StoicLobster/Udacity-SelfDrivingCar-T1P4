@@ -35,18 +35,22 @@ plt.plot(src_pts[:,0],src_pts[:,1],'r.')
 plt.plot(np.concatenate((dest_pts[:,0],[dest_pts[0,0]])),np.concatenate((dest_pts[:,1],[dest_pts[0,1]])),'b-')
 plt.plot(dest_pts[:,0],dest_pts[:,1],'b.')
 plt.title('Straight Road 1')
+plt.savefig('output_images/original_with_source_and_dest.png')
 
 # Get transform matrices
 M = cv2.getPerspectiveTransform(src_pts, dest_pts)
 Minv = cv2.getPerspectiveTransform(dest_pts, src_pts)
 
 # Pickle
-pickle.dump(M,open("M.p","wb"))
-pickle.dump(Minv,open("Minv.p","wb"))
+#pickle.dump(M,open("M.p","wb"))
+#pickle.dump(Minv,open("Minv.p","wb"))
 
 # Test on sample image
 warped = cv2.warpPerspective(img, M, img_size, flags=cv2.INTER_LINEAR)
 plt.figure(1)
 plt.imshow(warped)
+plt.plot(np.concatenate((dest_pts[:,0],[dest_pts[0,0]])),np.concatenate((dest_pts[:,1],[dest_pts[0,1]])),'b-')
+plt.plot(dest_pts[:,0],dest_pts[:,1],'b.')
 plt.title('Top Down View Warp')
+plt.savefig('output_images/warped_with_dest.png')
 plt.show()
