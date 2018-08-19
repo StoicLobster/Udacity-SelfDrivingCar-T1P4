@@ -29,8 +29,10 @@ The goals / steps of this project are the following:
 [image13]: ./output_images/histogram.png "Histogram"
 [image14]: ./output_images/poly_hist.png "Histogram Search Method"
 [image15]: ./output_images/poly_poly.png "Polynomial Search Method"
+[image16]: ./output_images/full_pipeline.png "Full Pipeline"
 
-[video1]: ./project_video.mp4 "Video"
+[video1]: ./output_videos/project_video_processed.mp4 "Project Video"
+[video2]: ./output_videos/challenge_video_processed.mp4 "Challenge Video"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
 
@@ -141,9 +143,15 @@ Finally, in order to calculate the vehicle offset it simply required an assumpti
 
 #### 7. Temporal Filtering and Final Result
 
-Finally, in order implement this pipeline robustly, I decided to include some temporal filtering and additional search logic. Specifically...
+Finally, in order implement this pipeline robustly, I decided to include some temporal filtering and additional search logic. Specifically, I implemented a rolling average filter of the polynomial coefficients and interpolated values. The size of this window was calibratable but I found 25 frames to be sufficient. This ensures that an arbitrary erroneous calculation on a single frame does not significantly impact the outputs. In the future, I think it would be good to implement a check on percent change so that very large changes can be rejected.
 
-![alt text][image6]
+Similarly, in a video of a real road there will be some frames where it is impossible to identify one or both lane lines. To combat this I added some logic which determines if lane lines were found in either method (histogram or polynomial search) based on the number of pixels found. First I check if lane lines were found in the previous frame, if not, the histogram method is used, otherwise it is safe to use the polynomial search method. With either method, if at least one lane line was not found, I do not attempt to calculate a polynomial and instead use the previously filtered polynomial. I keep track of the number of frames for which a polynomial was not found and if a calibratable number of frames fail, I will quit the program. In the future, I would like to implement an algorithm which determines that if one lane is found, I would use that polynomial with an offset as the equation for the other line. This would often be the case when the sold yellow line is detected but the interior dashed line is not.
+
+These algorithms are implemented in the core line finding method of `LaneLines.find_lane_lines()` and the hyperparameters can be found in the constructor.
+
+The final result of this pipeline is the original image annotated with the found lane lines and the calculated real world parameters. In order to do this I performed the entire pipeline up to this point, then used the inverse transform matrix to "unwarp" the image back to the original perspective with the polynomial lane lines drawn in place and super-imposed it onto the original frame. I also added text to display the current radius and center offset. Here is an example of a fully annotated frame:
+
+![alt text][image16]
 
 ---
 
@@ -151,7 +159,11 @@ Finally, in order implement this pipeline robustly, I decided to include some te
 
 #### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 
-Here's a [link to my video result](./project_video.mp4)
+I was able to successfully process the project video with generally smooth results. There is one point after a section of concrete road where the lines stray a bit, but the temporal filtering general covers this. Unfortunately, my current pipeline does not handle the challenge video well. The processed challenge video is only for the first half before my pipeline is no longer able to detect lane lines. For thoughts on future improvements, see the next section.
+
+Here's a [link to my processed project video](./project_video_processed.mp4)
+
+Here's a [link to my processed challenge video](./challenge_video_processed.mp4)
 
 ---
 
@@ -159,4 +171,4 @@ Here's a [link to my video result](./project_video.mp4)
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+There are two important areas where my pipeline could be improved: color/gradient thresholding and temporal smoothing. The improved color and gradient thresholding would help my pipeline detect the lane lines and not need to rely on temporal smoothing. It appears that my current pipeline fails when shadows are cast on the road. I am not exactly sure how to improve the pipeline for this situation but I suspect that I ought to use a color thresholding technique that adapts relative to the value/brightness of the surrounding pavement. To further improve robustness I ought to enhance my temporal filtering arbitration logic. Namely, if one lane line is detected but the other is not, I would like to use the valid polynomial and shift it to the previous location of the other lane line line. This should be a better approximation than no lane line at all.

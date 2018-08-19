@@ -610,7 +610,7 @@ if (False):
     plt.show()
     
 # Sample polyfit with histogram search
-if (True):
+if (False):
     img = mpimg.imread('test_images/test6.jpg')
     plt.figure(10)
     plt.imshow(img)
@@ -629,7 +629,7 @@ if (True):
     plt.title('2nd Order Polynomial Fit - Histogram Search Method')
     plt.savefig('output_images/poly_hist.png')
     # Sample search around poly
-    if (True):
+    if (False):
         # Append x_fit to list
         lane_lines.x_fit_all_L = np.vstack((lane_lines.x_fit_all_L, x_fit_L))
         lane_lines.x_fit_all_R = np.vstack((lane_lines.x_fit_all_R, x_fit_R))
@@ -660,7 +660,7 @@ if (True):
     plt.show()
     
 # Test full pipeline
-if (False):
+if (True):
     img = mpimg.imread('test_images/test6.jpg')
     lane_lines = LaneLines(img,img)
     plt.figure(13)
@@ -669,8 +669,8 @@ if (False):
     plt.figure(14)
     plt.imshow(lane_lines.draw_frame(img))
     plt.title('Found Lines')
+    plt.savefig('output_images/full_pipeline.png')
     plt.show()
-    mpimg.imsave('output_images/full_pipeline.png',lane_lines.draw_frame(img))
     
 ## Process video
 if (False):
