@@ -161,9 +161,9 @@ The final result of this pipeline is the original image annotated with the found
 
 I was able to successfully process the project video with generally smooth results. There is one point after a section of concrete road where the lines stray a bit, but the temporal filtering general covers this. Unfortunately, my current pipeline does not handle the challenge video well. The processed challenge video is only for the first half before my pipeline is no longer able to detect lane lines. For thoughts on future improvements, see the next section.
 
-Here's a [link to my processed project video](./project_video_processed.mp4)
+Here's a [link to my processed project video](./output_videos/project_video_processed.mp4)
 
-Here's a [link to my processed challenge video](./challenge_video_processed.mp4)
+Here's a [link to my processed challenge video](./output_videos/challenge_video_processed.mp4)
 
 ---
 
