@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from moviepy.editor import VideoFileClip
 import sys
-from _operator import xor
 
 ## Unpickle Required Data
 cam_mtx = pickle.load(open("camera_matrix.p","rb"))
@@ -37,23 +36,26 @@ if (False):
 # Color Threshold Function
 def color_thresh(img_RGB_in,RGB_out):
     # Input RGB undistorted, Output Binary (or RGB for video)
-    # Convert image to HLS color space
-    img_HLS = cv2.cvtColor(img_RGB_in, cv2.COLOR_RGB2HLS)
+    # Convert image to HSV color space
+    img_HSV = cv2.cvtColor(img_RGB_in, cv2.COLOR_RGB2HSV)
     # Extract S layer
-    H_layer = img_HLS[:,:,0]
-    L_layer = img_HLS[:,:,1]
-    S_layer = img_HLS[:,:,2]
+    H_layer = img_HSV[:,:,0]*2
+    S_layer = img_HSV[:,:,1]/255*100
+    V_layer = img_HSV[:,:,2]/255*100
     # Apply threshold to S layer to identify white and yellow lane lines
-    S_thresh = (90,255)
-    L_thresh = 240 # Targeting white
-    H_thresh = (20,35) # Targeting yellow
+    H_Yellow = (40,70)
+    S_Yellow = (30,100)
+    V_Yellow = (30,100)
+    H_White = (0,50)
+    S_White = (0,10)
+    V_White = (75,100)
     img_out = np.zeros_like(H_layer)
-    #img_out[(S_layer >= S_thresh[0]) & (S_layer <= S_thresh[1])] = 1
-    #bin_out[(S_layer >= S_thresh[0]) & (S_layer <= S_thresh[1]) \
-    #        | (((H_layer >= H_thresh[0]) & (H_layer <= H_thresh[1])) \
-    #        | (L_layer >= L_thresh))] = 1
-    img_out[((H_layer >= H_thresh[0]) & (H_layer <= H_thresh[1])) \
-            | (L_layer >= L_thresh)] = 1
+    img_out[(((H_layer >= H_Yellow[0]) & (H_layer <= H_Yellow[1])) \
+            & ((S_layer >= S_Yellow[0]) & (S_layer <= S_Yellow[1])) \
+            & ((V_layer >= V_Yellow[0]) & (V_layer <= V_Yellow[1]))) \
+            | (((H_layer >= H_White[0]) & (H_layer <= H_White[1])) \
+            & ((S_layer >= S_White[0]) & (S_layer <= S_White[1])) \
+            & ((V_layer >= V_White[0]) & (V_layer <= V_White[1])))] = 1   
             
     if (RGB_out):
         black_out_idxs = np.where(img_out == 0)
@@ -64,7 +66,7 @@ def color_thresh(img_RGB_in,RGB_out):
 
 # Sample color threshold image
 if (False):
-    img = mpimg.imread('test_images/test6.jpg')
+    img = mpimg.imread('test_images/test5.jpg')
     thrsh_img = color_thresh(img,RGB_out=False)
     plt.figure(2)
     plt.imshow(img)
@@ -191,9 +193,9 @@ class LaneLines():
         self.xm_per_pix = 3.7/self.x_width_pix # meters per pixel in x dimension
         self.ym_per_pix = 30/self.y_height_pix # meters per pixel in y dimension
         # Number of frames that failed to find lane lines before reset
-        self.num_failed_frame_alwd = 15
+        self.num_failed_frame_alwd = 25
         # Number of frames for rolling average filter
-        self.filt_size = 15
+        self.filt_size = 25
         
         # LINE PARAMETERS
         # was the left line detected in the current frame
@@ -460,7 +462,7 @@ class LaneLines():
         
         # Define y-value where we want radius of curvature
         # We'll choose the maximum y-value, corresponding to the bottom of the image
-        y_eval = self.frame_height - 1
+        y_eval = (self.frame_height - 1)*self.ym_per_pix
         
         # Calculation of R_curve (radius of curvature)
         self.radius_of_curvature_L = ((1 + (2*A_L*y_eval + B_L)**2)**1.5) / np.absolute(2*A_L)
@@ -481,8 +483,8 @@ class LaneLines():
         Find lane lines with an appropriate method
         '''
         ## Find lane pixels
-        # If left and right detection from previous loop is false: Use histogram method  
-        if (not(self.detected_L)) and (not(self.detected_R)):
+        # If left or right detection from previous loop is false: Use histogram method  
+        if (not(self.detected_L)) or (not(self.detected_R)):
             print("Histogram search method used.")
             # Call histogram method to find pixel locations of lanes and determine current frame detection validity
             leftx, lefty, rightx, righty = self.find_lane_pixels_hist()
@@ -529,14 +531,6 @@ class LaneLines():
         
         # Calculate center line offset
         self.calc_offset()
-        
-#         elif (self.detected_L and not(self.detected_R)):
-#             print("Left detected and right not.")
-#             # Shift left lane line to right side
-#             
-#         elif (not(self.detected_L) and self.detected_R):
-#             print("Right detected and left not.")
-#             # Shift right lane line to left side
             
         return
         
@@ -581,9 +575,9 @@ class LaneLines():
         #print("Left Radius: " + str(self.radius_of_curvature_L))
         #print("Right Radius: " + str(self.radius_of_curvature_R))
         #print("Lane Center Offset: " + str(lane_lines.center_line_offst))
+        #return(self.img_RGB_out)
         
-        #return(self.Frame)
-        return(self.img_RGB_out)
+        return(self.Frame)
                 
 # Sample histogram
 if (False):
@@ -661,16 +655,16 @@ if (False):
     plt.show()
     
 ## Process video
-if (True):
+if (False):
     img = mpimg.imread('test_images/test6.jpg')
     lane_lines = LaneLines(img,img)
-    video_output  = 'output_videos/project_video_processed.mp4'
+    video_output  = 'output_videos/challenge_video_processed.mp4'
     #video_output  = 'output_videos/project_video_processed.mp4'
     ## To speed up the testing process you may want to try your pipeline on a shorter subclip of the video
     ## To do so add .subclip(start_second,end_second) to the end of the line below
     ## Where start_second and end_second are integer values representing the start and end of the subclip
     ## You may also uncomment the following line for a subclip of the first 5 seconds
     ##clip1 = VideoFileClip("test_videos/solidWhiteRight.mp4").subclip(0,5)
-    clip = VideoFileClip("test_videos/project_video.mp4").subclip(23,28)
+    clip = VideoFileClip("test_videos/challenge_video.mp4")
     video_clip = clip.fl_image(lane_lines.draw_frame) #NOTE: this function expects color images!!
     video_clip.write_videofile(video_output, audio=False)
